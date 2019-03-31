@@ -23,6 +23,8 @@ class UserStore {
   @observable model = "create";
   @observable updateID = null;
 
+  @observable fetchState = "idle"
+
   // compute a filtered list of users
   @computed
   get filtered() {
@@ -94,6 +96,14 @@ class UserStore {
     }
   };
 
+  // fetch all users from server
+  @action
+  fetchUsers = () => {
+        return fetch("http://90e0eec7.ngrok.io/users").
+            then(data => console.log(JSON.stringify(data))).
+            catch(error => console.log(error))
+    }
+
 }
 
 @observer
@@ -110,6 +120,10 @@ class UserForm extends Component {
   @computed
   get getInfo() {
     return {first: this.firstInput, last: this.lastInput, email: this.emailInput, role: this.roleInput}
+  }
+
+  componentDidMount(){
+    this.props.userStore.fetchUsers()
   }
 
   onFormSubmit = event => {
@@ -212,7 +226,7 @@ const UserView = ({ onClick, first, last, email, role, actived, onChageModel }) 
         type="checkbox"
         name="is_finish"
         value={actived}
-        checked={actived}
+        defaultChecked={actived}
         onClick={onClick}
       />
     </th>
@@ -290,11 +304,6 @@ const UserList = observer(({ userStore }) => (
         />
       ))}
     </tbody>
-    <tfoot>
-      <tr>
-        <UserCounter userStore={userStore} />
-      </tr>
-    </tfoot>
   </table>
 ));
 
@@ -332,6 +341,7 @@ const UserApp = observer(() => {
       <UserForm userStore={userStore} />
       <hr />
       <UserList userStore={userStore} />
+      <UserCounter userStore={userStore} />
       <hr />
       <UserFilter userStore={userStore} />
       <JSONView store={userStore} />
