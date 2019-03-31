@@ -99,9 +99,10 @@ class UserStore {
   // fetch all users from server
   @action
   fetchUsers = () => {
-        return fetch("http://94f0b0d0.ngrok.io/users").
-            then(data => console.log(JSON.stringify(data))).
-            catch(error => console.log(error))
+        return fetch('https://94f0b0d0.ngrok.io/users')
+                .then(response => response.json())
+                .then(json => console.log(json))
+                .catch(error => console.log(error))
     }
 
 }
