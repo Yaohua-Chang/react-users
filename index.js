@@ -99,7 +99,7 @@ class UserStore {
   // fetch all users from server
   @action
   fetchUsers = () => {
-        return fetch("http://90e0eec7.ngrok.io/users").
+        return fetch("http://94f0b0d0.ngrok.io/users").
             then(data => console.log(JSON.stringify(data))).
             catch(error => console.log(error))
     }
