@@ -9,21 +9,13 @@ import { Grommet } from 'grommet';
 
 // Stores are where the business logic resides
 class UserStore {
-  nextID = 3;
-  @observable users = [
-        {'id': 0, 'first': 'Joe', 'last': 'Bloggs',
-            'email': 'joe@bloggs.com', 'role': 'student', 'actived': false},
-        {'id': 1, 'first': 'Ben', 'last': 'Bitdiddle',
-            'email': 'ben@cuny.edu', 'role': 'student', 'actived': false},
-        {'id': 2, 'first': 'Alissa P', 'last': 'Hacker',
-            'email': 'missalissa@cuny.edu', 'role': 'professor', 'actived': false},
-    ];
+  BASE_URL = "https://94f0b0d0.ngrok.io"
+
+  @observable users = [];
   @observable filterType = "All";
-
-  @observable model = "create";
-  @observable updateID = null;
-
+  @observable editingUser = { id: null, first: "", last: "", email: "", role: ""};
   @observable fetchState = "idle"
+
 
   // compute a filtered list of users
   @computed
@@ -42,15 +34,6 @@ class UserStore {
     return this.users.filter(t => t.actived);
   }
 
-  @computed
-  get submitName() {
-    if (this.model === "create") {
-      return "Create User"
-    } else {
-      return "Update User"
-    }
-  }
-
   // set a filter type: "All", "Active" or "Inactive"
   @action
   setFilterType(filterType) {
@@ -58,34 +41,67 @@ class UserStore {
   }
 
   @action
-  setModel(model) {
-    this.model = model;
+  setEditingUser(id) {
+    let user = this.users.find(e => e.id === id);
+    this.editingUser.id = id
+    this.editingUser.first = user.first
+    this.editingUser.last = user.last
+    this.editingUser.email = user.email
+    this.editingUser.role = user.role
   }
 
   @action
-  setUpdateID(id) {
-    this.updateID = id;
+  clearForm = () => {
+    this.editingUser.id = null
+    this.editingUser.first = "";
+    this.editingUser.last = "";
+    this.editingUser.email = "";
+    this.editingUser.role = "";
   }
 
-  // create a user
+  // create a user and post it to server
   @action
-  create = info => {
-    let id = this.nextID;
-    this.nextID += 1;
-    this.users.push({ id: id, first: info.first, last: info.last, email:info.email, role: info.role, actived: false });
+  create = () => {
+    let newUser = {first: this.editingUser.first, last: this.editingUser.last, email:this.editingUser.email, role: this.editingUser.role, actived: false }
+    fetch(this.BASE_URL + "/users", {
+      method: 'post',
+      body: JSON.stringify(newUser),
+      headers:{'Content-Type': 'application/json'}
+    })
+    .then(res => res.json())
+    .then(response => {
+        this.fetchUsers()
+        this.clearForm()
+        console.log('Success:', JSON.stringify(response))
+      })
+    .catch(error => console.error('Error:', error));
   };
 
   // update a user
   @action
-  update = info => {
-    let user = this.users.find(e => e.id === this.updateID);
-    if (user) {
-      user.first = info.first;
-      user.last = info.last;
-      user.email = info.email;
-      user.role = info.role;
-    }
+  update = () => {
+    fetch(this.BASE_URL + "/users/" + this.editingUser.id, {
+      method: 'PATCH',
+      body: JSON.stringify(this.editingUser),
+      headers:{'Content-Type': 'application/json'}
+    })
+    .then(res => res.json())
+    .then(response => {
+        this.fetchUsers()
+        this.clearForm()
+        console.log('Success:', JSON.stringify(response))
+      })
+    .catch(error => console.error('Error:', error));
   };
+
+  @action
+  saveUser = editingUser => {
+    if (this.editingUser.id == null) {
+        this.create()
+    } else {
+        this.update()
+    }
+  }
 
   // toggle the completion state of a user
   @action
@@ -99,10 +115,17 @@ class UserStore {
   // fetch all users from server
   @action
   fetchUsers = () => {
-        return fetch('https://94f0b0d0.ngrok.io/users')
+      this.fetchState = "pending"
+        return fetch(this.BASE_URL + '/users')
                 .then(response => response.json())
-                .then(json => console.log(json))
-                .catch(error => console.log(error))
+                .then(json => {
+                  this.fetchState = "done"
+                  this.users = json
+                  })
+                .catch(error => {
+                  this.fetchState = "error"
+                  console.log(error)
+                  })
     }
 
 }
@@ -113,49 +136,30 @@ class UserForm extends Component {
     super(props);
   }
 
-  @observable firstInput = "";
-  @observable lastInput = "";
-  @observable emailInput = "";
-  @observable roleInput = "";
-
-  @computed
-  get getInfo() {
-    return {first: this.firstInput, last: this.lastInput, email: this.emailInput, role: this.roleInput}
-  }
-
   componentDidMount(){
     this.props.userStore.fetchUsers()
   }
 
   onFormSubmit = event => {
     event.preventDefault();
-    if (this.props.userStore.model === "create") {
-      this.props.userStore.create(this.getInfo);
-    } else {
-      this.props.userStore.update(this.getInfo);
-      this.props.userStore.setModel("create")
-    }
-    this.firstInput = "";
-    this.lastInput = "";
-    this.emailInput = "";
-    this.roleInput = "";
+    this.props.userStore.saveUser()
   };
 
   @action
   handleFirstInputChange = event => {
-    this.firstInput = event.target.value;
+    this.props.userStore.editingUser.first = event.target.value;
   };
   @action
   handleLastInputChange = event => {
-    this.lastInput = event.target.value;
+    this.props.userStore.editingUser.last = event.target.value;
   };
   @action
   handleEmailInputChange = event => {
-    this.emailInput = event.target.value;
+    this.props.userStore.editingUser.email = event.target.value;
   };
   @action
   handleRoleInputChange = event => {
-    this.roleInput = event.target.value;
+    this.props.userStore.editingUser.role = event.target.value;
   };
 
   render() {
@@ -166,7 +170,7 @@ class UserForm extends Component {
           <input
             type="text"
             name="first"
-            value={this.firstInput}
+            value={this.props.userStore.editingUser.first}
             onChange={this.handleFirstInputChange}
           />
         </label>
@@ -176,7 +180,7 @@ class UserForm extends Component {
           <input
             type="text"
             name="last"
-            value={this.lastInput}
+            value={this.props.userStore.editingUser.last}
             onChange={this.handleLastInputChange}
           />
         </label>
@@ -186,27 +190,27 @@ class UserForm extends Component {
           <input
             type="text"
             name="email"
-            value={this.emailInput}
+            value={this.props.userStore.editingUser.email}
             onChange={this.handleEmailInputChange}
           />
         </label>
         <br/>
         <label>
           role:
-          <select onChange={this.handleRoleInputChange}>
+          <select onChange={this.handleRoleInputChange} value={this.props.userStore.editingUser.role}>
             <option value="">--Please choose a role--</option>
             <option value="student">Student</option>
             <option value="professor">Professor</option>
           </select>
         </label>
         <br/>
-        <input type="submit" value={this.props.userStore.submitName} />
+        <input type="submit" value={this.props.userStore.editingUser.id ? "update user" : "create user"} />
       </form>
     );
   }
 }
 
-const UserView = ({ onClick, first, last, email, role, actived, onChageModel }) => (
+const UserView = ({ onClick, first, last, email, role, actived, onEditingUser }) => (
   <tr>
     <th>
       {first}
@@ -232,7 +236,7 @@ const UserView = ({ onClick, first, last, email, role, actived, onChageModel }) 
       />
     </th>
     <th>
-      <a href="#" onClick={onChageModel}>Edit</a>
+      <a href="#" onClick={onEditingUser}>Edit</a>
     </th>
   </tr>
 );
@@ -269,9 +273,15 @@ const UserFilter = observer(({ userStore }) => (
   </span>
 ));
 
+const FetchState = observer(({ userStore }) => (
+  <div>
+     Fetch State : {userStore.fetchState}
+  </div>
+));
+
 const UserCounter = observer(({ userStore }) => (
   <span>
-    <b>{userStore.filterCompleted.length} of {userStore.users.length} Actived</b>
+    {userStore.filterCompleted.length} of {userStore.users.length} Actived
   </span>
 ));
 
@@ -298,9 +308,8 @@ const UserList = observer(({ userStore }) => (
           onClick={() => {
             userStore.toggle(t.id);
           }}
-          onChageModel={() => {
-            userStore.setModel("edit")
-            userStore.setUpdateID(t.id)
+          onEditingUser={() => {
+            userStore.setEditingUser(t.id)
           }}
         />
       ))}
@@ -342,6 +351,8 @@ const UserApp = observer(() => {
       <UserForm userStore={userStore} />
       <hr />
       <UserList userStore={userStore} />
+      <hr />
+      <FetchState userStore={userStore} />
       <UserCounter userStore={userStore} />
       <hr />
       <UserFilter userStore={userStore} />
